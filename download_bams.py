@@ -30,14 +30,18 @@ def get_download_path(aspera_url, download_dir):
     return os.path.join(download_dir, filename)
 
 # --- Main Download Logic ---
-def download_with_aspera(sample_id, aspera_url, download_dir):
+def download_with_aspera(sample_id, aspera_url, download_dir, file_type="file"):
     """
     Downloads a single file using Aspera Connect.
     """
+    if not aspera_url:
+        print(f"  Skipping {file_type} for {sample_id} as URL is not provided.")
+        return True # Not a failure, just nothing to do
+
     ensure_dir(download_dir)
     destination_path = get_download_path(aspera_url, download_dir)
 
-    print(f"\nProcessing sample: {sample_id}")
+    print(f"\nProcessing {file_type} for sample: {sample_id}")
     print(f"  Aspera URL: {aspera_url}")
     print(f"  Destination: {destination_path}")
 
@@ -65,65 +69,86 @@ def download_with_aspera(sample_id, aspera_url, download_dir):
         stdout, stderr = process.communicate()
 
         if process.returncode == 0:
-            print(f"  Successfully downloaded (or resumed/verified) {os.path.basename(destination_path)} for sample {sample_id}.")
-            # Check for common Aspera success messages in stdout/stderr if needed
+            print(f"  Successfully downloaded (or resumed/verified) {os.path.basename(destination_path)} ({file_type}) for sample {sample_id}.")
             if stdout:
                 print(f"    Aspera stdout: {stdout.decode().strip()}")
             if stderr: # Aspera often prints status to stderr even on success
                 print(f"    Aspera stderr: {stderr.decode().strip()}")
             return True
         else:
-            print(f"  Error downloading {sample_id}. Return code: {process.returncode}")
+            print(f"  Error downloading {file_type} for {sample_id}. Return code: {process.returncode}")
             if stdout:
                 print(f"    Stdout: {stdout.decode()}")
             if stderr:
                 print(f"    Stderr: {stderr.decode()}")
             return False
     except FileNotFoundError:
-        print(f"  Error: Aspera Connect executable ('{ASPERA_CONNECT_PATH}') not found.")
+        print(f"  Error: Aspera Connect executable ('{ASPERA_CONNECT_PATH}') not found for downloading {file_type} for {sample_id}.")
         print(f"  Please ensure Aspera Connect CLI is installed and in your PATH, or update ASPERA_CONNECT_PATH.")
         return False
     except Exception as e:
-        print(f"  An unexpected error occurred during download for {sample_id}: {e}")
+        print(f"  An unexpected error occurred during download of {file_type} for {sample_id}: {e}")
         return False
 
 def main():
     """
-    Main function to read TSV and initiate downloads.
+    Main function to read TSV and initiate downloads for BAM and BAI files.
     """
     if not os.path.exists(TSV_FILE):
         print(f"Error: TSV file '{TSV_FILE}' not found.")
         return
 
-    print(f"Starting BAM file downloads. Files will be saved to: {os.path.abspath(DOWNLOAD_DIR)}")
+    print(f"Starting BAM and BAI file downloads. Files will be saved to: {os.path.abspath(DOWNLOAD_DIR)}")
 
-    successful_downloads = 0
-    failed_downloads = 0
+    successful_bam_downloads = 0
+    failed_bam_downloads = 0
+    successful_bai_downloads = 0
+    failed_bai_downloads = 0
 
     with open(TSV_FILE, 'r', newline='') as tsvfile:
         reader = csv.DictReader(tsvfile, delimiter='\t')
-        if 'sample_id' not in reader.fieldnames or 'bam_url' not in reader.fieldnames:
-            print(f"Error: TSV file must contain 'sample_id' and 'bam_url' columns.")
+        expected_columns = ['sample_id', 'bam_url', 'bai_url']
+        if not all(col in reader.fieldnames for col in expected_columns):
+            print(f"Error: TSV file must contain {expected_columns} columns. Found: {reader.fieldnames}")
             return
 
         for row in reader:
             sample_id = row['sample_id']
             bam_url = row['bam_url']
+            bai_url = row.get('bai_url') # Use .get() for graceful handling if column is missing for a row
 
-            if not bam_url or not sample_id:
-                print(f"Skipping row due to missing sample_id or bam_url: {row}")
+            if not sample_id:
+                print(f"Skipping row due to missing sample_id: {row}")
                 continue
 
-            if download_with_aspera(sample_id, bam_url, DOWNLOAD_DIR):
-                successful_downloads += 1
+            # Download BAM file
+            if bam_url:
+                print(f"\n--- Attempting BAM download for {sample_id} ---")
+                if download_with_aspera(sample_id, bam_url, DOWNLOAD_DIR, file_type="BAM"):
+                    successful_bam_downloads += 1
+                else:
+                    failed_bam_downloads += 1
             else:
-                failed_downloads += 1
+                print(f"Skipping BAM download for {sample_id} as bam_url is missing.")
+                failed_bam_downloads +=1
+
+
+            # Download BAI file
+            if bai_url:
+                print(f"\n--- Attempting BAI download for {sample_id} ---")
+                if download_with_aspera(sample_id, bai_url, DOWNLOAD_DIR, file_type="BAI"):
+                    successful_bai_downloads += 1
+                else:
+                    failed_bai_downloads += 1
+            else:
+                print(f"Skipping BAI download for {sample_id} as bai_url is missing or not provided.")
+                # Not necessarily a failure if BAI is optional and not listed
 
     print("\n--- Download Summary ---")
-    print(f"Successfully downloaded/verified: {successful_downloads}")
-    print(f"Failed downloads: {failed_downloads}")
-    if failed_downloads > 0:
-        print("Please check the error messages above for details on failed downloads.")
+    print(f"BAM Files: {successful_bam_downloads} successful, {failed_bam_downloads} failed.")
+    print(f"BAI Files: {successful_bai_downloads} successful, {failed_bai_downloads} failed.")
+    if failed_bam_downloads > 0 or failed_bai_downloads > 0:
+        print("Please check the error messages above for details on any failed downloads.")
     print("------------------------")
 
 if __name__ == "__main__":

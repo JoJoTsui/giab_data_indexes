@@ -1,6 +1,6 @@
-# BAM File Downloader using Aspera Connect
+# BAM and BAI File Downloader using Aspera Connect
 
-This project provides a Python script (`download_bams.py`) to download BAM files listed in a TSV file (`sample_bam_urls.tsv`) using Aspera Connect.
+This project provides a Python script (`download_bams.py`) to download BAM files and their corresponding BAI index files listed in a TSV file (`sample_bam_urls.tsv`) using Aspera Connect.
 
 ## Prerequisites
 
@@ -16,8 +16,8 @@ This project provides a Python script (`download_bams.py`) to download BAM files
 
 ## Files
 
-*   `sample_bam_urls.tsv`: A tab-separated values file containing the list of samples and their Aspera download URLs.
-    *   **Format**: Must contain two columns: `sample_id` and `bam_url`.
+*   `sample_bam_urls.tsv`: A tab-separated values file containing the list of samples and their Aspera download URLs for both BAM and BAI files.
+    *   **Format**: Must contain three columns: `sample_id`, `bam_url`, and `bai_url`.
 *   `download_bams.py`: The Python script to perform the downloads.
 *   `README.md`: This file.
 
@@ -49,10 +49,10 @@ You can configure the following settings at the top of `download_bams.py`:
 The script will:
 *   Read each entry from the TSV file.
 *   Create the download directory if it doesn't exist.
-*   Attempt to download each BAM file using Aspera Connect.
+*   Attempt to download each BAM file and its corresponding BAI file using Aspera Connect.
 *   If a file already exists, Aspera Connect (with `-k1`) will attempt to resume the download or verify the existing file.
 *   Print progress and error messages to the console.
-*   Provide a summary of successful and failed downloads at the end.
+*   Provide a summary of successful and failed downloads for both BAM and BAI files at the end.
 
 ## Troubleshooting
 
